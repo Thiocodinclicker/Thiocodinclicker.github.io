@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Thiocodin Tycoon - Final Fix</title>
+    <style>
+        /* --- STYLIZACJA --- */
+        :root {
+            --primary: #005f40;
+            --accent: #0056b3;
+            --bg: #f0f4f8;
+        }
+
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background-color: var(--bg);
+            color: #333;
+            margin: 0;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            user-select: none; /* Blokada zaznaczania tekstu */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
+        /* UKŁAD */
+        .game-section {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .shop-section {
+            flex: 1;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            overflow-y: auto;
+            border-left: 1px solid #ccc;
+            box-shadow: -5px 0 15px rgba(0,0,0,0.05);
+            z-index: 10;
+        }
+
+        /* NAGŁÓWKI I STATYSTYKI */
+        h1 { color: var(--primary); margin-bottom: 10px; text-align: center; font-size: 2rem; }
+        
+        .stats-box {
+            background: white;
+            padding: 15px 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            text-align: center;
+            margin-bottom: 20px;
+            pointer-events: none; /* Statystyki są "przezroczyste" dla myszki */
+            z-index: 5;
+        }
+
+        .score { font-size: 2.5rem; font-weight: bold; color: var(--accent); }
+        .rank { font-weight: bold; color: var(--primary); text-transform: uppercase; font-size: 0.9rem; }
+
+        /* --- STREFA KLIKANIA (NAJWAŻNIEJSZE) --- */
+        .game-container {
+            position: relative;
+            width: 300px;
+            height: 400px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Obrazek jest tylko wizualny, nie klika się go bezpośrednio */
+        #visual-bottle {
+            width: 250px;
+            transition: transform 0.05s linear;
+            filter: drop-shadow(0 10px 15px rgba(0,0,0,0.2));
+            pointer-events: none; /* Myszka ignoruje obrazek */
+            user-select: none;
+        }
+
+        /* Niewidzialna warstwa klikalna na wierzchu */
+        #click-zone {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 100; /* Zawsze na samej górze */
+            cursor: pointer;
+            /* Debug: odkomentuj linię niżej, żeby zobaczyć gdzie klikać */
+            /* border: 2px solid red; background: rgba(255,0,0,0.1); */
+        }
+
+        /* SKLEP */
+        .shop-item {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s;
+        }
+        .shop-item:hover { background: #e2e6ea; }
+        .shop-item.disabled { opacity: 0.5; pointer-events: none; filter: grayscale(1); }
+        .item-name { font-weight: bold; font-size: 0.95rem; }
+        .item-cost { color: var(--primary); font-weight: bold; }
+        .count-badge { background: var(--accent); color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.75rem; margin-left: 5px; }
+
+        /* CZĄSTECZKI */
+        .particle {
+            position: absolute;
+            color: var(--accent);
+            font-weight: bold;
+            font-size: 1.5rem;
+            pointer-events: none; /* Cząsteczki nie blokują klikania */
+            animation: floatUp 0.8s ease-out forwards;
+            z-index: 50;
+        }
+
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-80px); }
+        }
+
+        /* MENU ZAPISU */
+        .save-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            font-size: 0.8rem;
+            color: #666;
+            z-index: 200;
+        }
+        button.reset-btn {
+            background: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="game-section">
+        <h1>Thiocodin Tycoon</h1>
+        
+        <div class="stats-box">
+            <div class="rank" id="rank">Pacjent Zero</div>
+            <div class="score"><span id="score">0</span> ml</div>
+            <small>na sekundę: <span id="mps">0</span></small>
+        </div>
+
+        <div class="game-container">
+            <img src="thiocodin.png" id="visual-bottle" alt="Butelka">
+            
+            <div id="click-zone"></div>
+        </div>
+
+        <div class="save-controls">
+            Stan gry: Cookies &bull; <button class="reset-btn" onclick="hardReset()">Resetuj Wszystko</button>
+        </div>
+    </div>
+
+    <div class="shop-section">
+        <h3 style="margin-top:0; border-bottom: 2px solid #ddd; padding-bottom: 10px;">Apteka</h3>
+        <div id="shop-list"></div>
+    </div>
+
+    <script>
+        /* --- CONFIG --- */
+        const GAME_DATA = {
+            score: 0,
+            items: { spoon: 0, cup: 0, grandma: 0, pharmacist: 0, factory: 0, lab: 0 }
+        };
+
+        const SHOP_ITEMS = [
+            { id: 'spoon', name: 'Sprite', type: 'click', cost: 20, val: 1 },
+            { id: 'cup', name: 'Miarka', type: 'click', cost: 100, val: 5 },
+            { id: 'grandma', name: 'Babcia', type: 'auto', cost: 250, val: 2 },
+            { id: 'pharmacist', name: 'Farmaceuta', type: 'auto', cost: 1000, val: 10 },
+            { id: 'factory', name: 'Laboratorium UNIA', type: 'auto', cost: 5000, val: 50 },
+            { id: 'lab', name: 'Mommy ASMR', type: 'auto', cost: 20000, val: 250 }
+        ];
+
+        let soundEffect = new Audio('pour.mp3'); // Opcjonalne
+
+        /* --- CORE FUNCTIONS --- */
+        
+        // Inicjalizacja
+        window.onload = function() {
+            loadFromCookies();
+            renderShop();
+            updateGUI();
+            
+            // Pętle
+            setInterval(autoClickLoop, 1000); // Dochód pasywny
+            setInterval(updateGUI, 100);      // Odświeżanie przycisków
+            setInterval(saveToCookies, 5000); // Auto-zapis co 5 sek
+        };
+
+        // Obsługa kliknięcia (PODPIĘTA POD NIEWIDZIALNĄ WARSTWĘ)
+        const clickZone = document.getElementById('click-zone');
+        
+        clickZone.addEventListener('mousedown', function(e) {
+            handleInput(e);
+        });
+
+        // Obsługa dotyku dla telefonów (żeby było szybciej)
+        clickZone.addEventListener('touchstart', function(e) {
+            e.preventDefault(); // Blokuje zoomowanie
+            handleInput(e.touches[0]);
+        }, {passive: false});
+
+        function handleInput(e) {
+            // 1. Logika gry
+            const clickPower = getClickPower();
+            GAME_DATA.score += clickPower;
+            
+            // 2. Dźwięk (klonowanie dla spamu)
+            try { 
+                let s = soundEffect.cloneNode(); 
+                s.volume = 0.3; 
+                s.play().catch(()=>{}); 
+            } catch(err){}
+
+            // 3. Efekty wizualne
+            spawnParticle(e.clientX, e.clientY, `+${clickPower}`);
+            animateBottle();
+            
+            updateGUI();
+        }
+
+        function animateBottle() {
+            const bottle = document.getElementById('visual-bottle');
+            bottle.style.transform = `scale(0.95) rotate(${Math.random() * 4 - 2}deg)`;
+            setTimeout(() => {
+                bottle.style.transform = `scale(1) rotate(0deg)`;
+            }, 50);
+        }
+
+        function autoClickLoop() {
+            const mps = getMPS();
+            if(mps > 0) {
+                GAME_DATA.score += mps;
+                updateGUI();
+            }
+        }
+
+        /* --- SHOP LOGIC --- */
+
+        function buy(id) {
+            const item = SHOP_ITEMS.find(i => i.id === id);
+            const currentLevel = GAME_DATA.items[id];
+            const price = Math.floor(item.cost * Math.pow(1.3, currentLevel));
+
+            if(GAME_DATA.score >= price) {
+                GAME_DATA.score -= price;
+                GAME_DATA.items[id]++;
+                renderShop(); // Przerysuj ceny
+                updateGUI();
+                saveToCookies();
+            }
+        }
+
+        function getClickPower() {
+            let power = 1;
+            SHOP_ITEMS.filter(i => i.type === 'click').forEach(i => {
+                power += (i.val * GAME_DATA.items[i.id]);
+            });
+            return power;
+        }
+
+        function getMPS() {
+            let mps = 0;
+            SHOP_ITEMS.filter(i => i.type === 'auto').forEach(i => {
+                mps += (i.val * GAME_DATA.items[i.id]);
+            });
+            return mps;
+        }
+
+        /* --- GUI & RENDER --- */
+
+        function renderShop() {
+            const list = document.getElementById('shop-list');
+            list.innerHTML = '';
+            
+            SHOP_ITEMS.forEach(item => {
+                const lvl = GAME_DATA.items[item.id];
+                const price = Math.floor(item.cost * Math.pow(1.3, lvl));
+                
+                const div = document.createElement('div');
+                div.className = 'shop-item';
+                div.id = `btn-${item.id}`;
+                div.onclick = () => buy(item.id);
+                
+                div.innerHTML = `
+                    <div>
+                        <div class="item-name">${item.name} <span class="count-badge">${lvl}</span></div>
+                        <small style="color:#666">+${item.val} ${item.type === 'auto' ? '/sek' : 'klik'}</small>
+                    </div>
+                    <div class="item-cost">${price.toLocaleString()} ml</div>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        function updateGUI() {
+            document.getElementById('score').innerText = Math.floor(GAME_DATA.score).toLocaleString();
+            document.getElementById('mps').innerText = getMPS().toLocaleString();
+            
+            // Logika rang
+            const s = GAME_DATA.score;
+            let r = "Pacjent Zero";
+            if(s > 500) r = "Kaszlący";
+            if(s > 5000) r = "Syropiarz";
+            if(s > 50000) r = "Baron Kodeinowy";
+            if(s > 1000000) r = "THIOCODIN GOD";
+            document.getElementById('rank').innerText = r;
+
+            // Włączanie/wyłączanie przycisków w sklepie
+            SHOP_ITEMS.forEach(item => {
+                const lvl = GAME_DATA.items[item.id];
+                const price = Math.floor(item.cost * Math.pow(1.3, lvl));
+                const btn = document.getElementById(`btn-${item.id}`);
+                if(btn) {
+                    if(GAME_DATA.score >= price) {
+                        btn.classList.remove('disabled');
+                    } else {
+                        btn.classList.add('disabled');
+                    }
+                }
+            });
+        }
+
+        function spawnParticle(x, y, txt) {
+            const p = document.createElement('div');
+            p.className = 'particle';
+            p.innerText = txt;
+            // Losowe odchylenie pozycji
+            const offsetX = (Math.random() - 0.5) * 40;
+            p.style.left = (x + offsetX) + 'px';
+            p.style.top = (y - 20) + 'px';
+            document.body.appendChild(p);
+            setTimeout(() => p.remove(), 800);
+        }
+
+        /* --- COOKIES SYSTEM (ZAPISYWANIE) --- */
+
+        function saveToCookies() {
+            // Zamieniamy obiekt gry na tekst JSON
+            const json = JSON.stringify(GAME_DATA);
+            // Kodujemy tekst, żeby nie zepsuć ciasteczka znakami specjalnymi
+            const encoded = encodeURIComponent(json);
+            // Ustawiamy ciastko na 365 dni
+            setCookie("thiocodin_save_v1", encoded, 365);
+        }
+
+        function loadFromCookies() {
+            const cookieVal = getCookie("thiocodin_save_v1");
+            if(cookieVal) {
+                try {
+                    const decoded = decodeURIComponent(cookieVal);
+                    const parsed = JSON.parse(decoded);
+                    // Scalanie z obecnymi danymi (w razie dodania nowych itemów w przyszłości)
+                    Object.assign(GAME_DATA, parsed);
+                } catch(e) {
+                    console.error("Błąd odczytu save'a:", e);
+                }
+            }
+        }
+
+        function setCookie(cname, cvalue, exdays) {
+            const d = new Date();
+            d.setTime(d.getTime() + (exdays*24*60*60*1000));
+            let expires = "expires="+ d.toUTCString();
+            document.cookie = cname + "=" + cvalue + ";" + expires + ";path=/";
+        }
+
+        function getCookie(cname) {
+            let name = cname + "=";
+            let decodedCookie = decodeURIComponent(document.cookie);
+            let ca = decodedCookie.split(';');
+            for(let i = 0; i <ca.length; i++) {
+                let c = ca[i];
+                while (c.charAt(0) == ' ') {
+                    c = c.substring(1);
+                }
+                if (c.indexOf(name) == 0) {
+                    return c.substring(name.length, c.length);
+                }
+            }
+            return "";
+        }
+
+        function hardReset() {
+            if(confirm("Usunąć zapis (ciasteczka) i zacząć od nowa?")) {
+                setCookie("thiocodin_save_v1", "", -1); // Ustawienie daty ważności w przeszłości usuwa ciastko
+                location.reload();
+            }
+        }
+
+    </script>
+</body>
+</html>
