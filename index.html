@@ -5,18 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Thiocodin Clicker</title>
     <style>
-        /* --- STYLIZACJA --- */
+        /* --- STYLIZACJA PODSTAWOWA --- */
         :root {
             --primary: #005f40;
             --secondary: #003d29;
             --accent: #0056b3;
-            --bg: #f0f4f8;
-            --item-bg: #f8f9fa;
+            --item-bg: rgba(255, 255, 255, 0.9);
         }
 
         body {
             font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg);
+            background-color: transparent; 
             color: #333;
             margin: 0;
             height: 100vh;
@@ -26,7 +25,60 @@
             -webkit-user-select: none;
         }
 
-        /* UKŁAD */
+        /* --- WIDEO W TLE --- */
+        #bg-video {
+            position: fixed;
+            right: 0;
+            bottom: 0;
+            min-width: 100%;
+            min-height: 100%;
+            width: auto;
+            height: auto;
+            z-index: -10;
+            object-fit: cover;
+        }
+
+        #bg-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(240, 244, 248, 0.85);
+            z-index: -5;
+            backdrop-filter: blur(3px);
+        }
+
+        /* --- PRZYCISK MUZYKI --- */
+        #music-wrapper {
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            z-index: 2147483647;
+        }
+
+        .music-btn {
+            background: #e6fffa; /* Domyślnie włączony - zielonkawy */
+            border: 2px solid var(--primary);
+            color: var(--primary);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .music-btn:hover {
+            transform: scale(1.05);
+            filter: brightness(1.1);
+        }
+
+        /* --- UKŁAD GRY --- */
         .game-section {
             flex: 2;
             display: flex;
@@ -40,33 +92,36 @@
         .shop-section {
             flex: 1;
             min-width: 320px;
-            background: white;
+            background: rgba(255, 255, 255, 0.85); 
+            backdrop-filter: blur(10px);
             display: flex;
             flex-direction: column;
             padding: 0;
-            border-left: 2px solid #ddd;
+            border-left: 2px solid rgba(0,0,0,0.1);
             box-shadow: -5px 0 15px rgba(0,0,0,0.05);
             z-index: 10;
         }
 
-        /* NAGŁÓWKI I STATYSTYKI */
+        /* --- STATYSTYKI --- */
         h1 { 
             color: var(--primary); 
             margin-bottom: 5px; 
             text-align: center; 
             font-size: 2.5rem; 
             letter-spacing: -1px;
+            text-shadow: 0 2px 10px rgba(255,255,255,0.8);
         }
         
         .stats-box {
-            background: white;
+            background: rgba(255, 255, 255, 0.9);
             padding: 20px 40px;
             border-radius: 16px;
             box-shadow: 0 8px 20px rgba(0,0,0,0.1);
             text-align: center;
             margin-bottom: 30px;
-            pointer-events: none; /* Statystyki są "przezroczyste" dla myszki */
+            pointer-events: none;
             min-width: 250px;
+            backdrop-filter: blur(5px);
         }
 
         .score { font-size: 2.8rem; font-weight: 800; color: var(--accent); line-height: 1; }
@@ -74,11 +129,11 @@
         .mps { font-size: 1.1rem; color: #666; margin-top: 5px; font-weight: 500; }
         .rank { color: var(--primary); font-weight: bold; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 1.5px; margin-bottom: 5px;}
 
-        /* --- STREFA KLIKANIA (NAJWAŻNIEJSZE) --- */
+        /* --- KLIKANIE (BUTELKA) --- */
         .game-container {
             position: relative;
-            width: 320px;
-            height: 420px;
+            width: 300px;
+            height: 400px;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -89,19 +144,17 @@
             transition: transform 0.05s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             filter: drop-shadow(0 15px 25px rgba(0,0,0,0.25));
             pointer-events: none;
-            user-select: none;
         }
 
-        /* Niewidzialny przycisk na wierzchu */
         #click-zone {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
             z-index: 100;
             cursor: pointer;
-            border-radius: 50%; /* Bardziej dopasowane do kształtu */
+            border-radius: 50%;
         }
 
-        /* SKLEP */
+        /* --- SKLEP --- */
         .shop-header {
             padding: 20px;
             background: var(--primary);
@@ -119,7 +172,7 @@
 
         .shop-item {
             background: var(--item-bg);
-            border: 1px solid #e9ecef;
+            border: 1px solid rgba(0,0,0,0.1);
             padding: 12px 15px;
             margin-bottom: 10px;
             border-radius: 10px;
@@ -128,18 +181,16 @@
             justify-content: space-between;
             align-items: center;
             transition: all 0.2s;
-            position: relative;
-            overflow: hidden;
         }
         
-        .shop-item:hover { background: #eef; transform: translateX(-3px); border-color: var(--accent); }
+        .shop-item:hover { background: #fff; transform: translateX(-3px); border-color: var(--accent); }
         .shop-item:active { transform: scale(0.98); }
         
         .shop-item.disabled { 
-            opacity: 0.5; 
+            opacity: 0.6; 
             pointer-events: none; 
             filter: grayscale(1); 
-            background: #eee;
+            background: rgba(230, 230, 230, 0.8);
         }
 
         .item-left { display: flex; flex-direction: column; }
@@ -154,13 +205,7 @@
             margin-left: 5px;
         }
 
-        /* Scrollbar sklepu */
-        .shop-list::-webkit-scrollbar { width: 8px; }
-        .shop-list::-webkit-scrollbar-track { background: #f1f1f1; }
-        .shop-list::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
-        .shop-list::-webkit-scrollbar-thumb:hover { background: #bbb; }
-
-        /* CZĄSTECZKI */
+        /* --- EFEKTY --- */
         .particle {
             position: absolute;
             color: var(--accent);
@@ -177,37 +222,51 @@
             100% { opacity: 0; transform: translateY(-100px) scale(1.2); }
         }
 
-        /* MENU DÓŁ */
         .save-controls {
             position: absolute;
             bottom: 15px;
             left: 20px;
             font-size: 0.8rem;
-            color: #777;
+            color: #555;
+            font-weight: bold;
             z-index: 200;
+            text-shadow: 0 0 5px white;
         }
+        
         button.reset-btn {
-            background: transparent; color: #dc3545; border: 1px solid #dc3545; 
+            background: rgba(255,255,255,0.8); color: #dc3545; border: 1px solid #dc3545; 
             padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.75rem;
-            margin-left: 5px; transition: all 0.2s;
+            margin-left: 5px;
         }
-        button.reset-btn:hover { background: #dc3545; color: white; }
 
-        /* Responsywność dla telefonów */
+        /* RESPASYWNOŚĆ */
         @media (max-width: 768px) {
             body { flex-direction: column; }
             .game-section { flex: 1; border-bottom: 2px solid #ddd; border-right: none; }
             .shop-section { flex: 1; min-width: 100%; border-top: 2px solid #ddd; }
             #visual-bottle { width: 180px; }
             .game-container { height: 250px; }
-            h1 { font-size: 1.8rem; margin-top: 10px; }
-            .stats-box { padding: 10px 20px; margin-bottom: 10px; }
-            .score { font-size: 2rem; }
+            h1 { font-size: 1.8rem; margin-top: 20px; }
+            #music-wrapper { top: auto; bottom: 15px; right: 15px; } 
         }
-
     </style>
 </head>
 <body>
+
+    <video autoplay muted loop playsinline id="bg-video">
+        <source src="tjoko.mp4" type="video/mp4">
+    </video>
+    <div id="bg-overlay"></div>
+
+    <audio id="bg-music" loop autoplay>
+        <source src="thioco.mp3" type="audio/mpeg">
+    </audio>
+
+    <div id="music-wrapper">
+        <button id="music-btn" class="music-btn" onclick="toggleMusic()">
+            🎵 Muzyka: ON
+        </button>
+    </div>
 
     <div class="game-section">
         <h1>Thiocodin Clicker</h1>
@@ -224,30 +283,26 @@
         </div>
 
         <div class="save-controls">
-            Auto-zapis włączony <button class="reset-btn" onclick="hardReset()">Resetuj Grę</button>
+            Auto-zapis <button class="reset-btn" onclick="hardReset()">Reset</button>
         </div>
     </div>
 
     <div class="shop-section">
         <div class="shop-header">
-            <h2>Apteka i Ulepszenia</h2>
+            <h2>Apteka</h2>
         </div>
         <div class="shop-list" id="shop-list">
             </div>
     </div>
 
     <script>
-        /* --- DANE GRY --- */
-        // Tutaj definiujemy stan gry. Jeśli dodajesz nowe itemy w SHOP_ITEMS, 
-        // system sam doda je do zapisu.
+        /* --- ZMIENNE --- */
         let GAME_DATA = {
             score: 0,
             items: {} 
         };
 
-        // --- KONFIGURACJA ULEPSZEŃ (WIĘCEJ UPGRADEÓW!) ---
         const SHOP_ITEMS = [
-            // --- KLIKACZE ---
             { id: 'spoon', name: 'Sprite 500ml', type: 'click', cost: 20, val: 1, desc: '+1 klik' },
             { id: 'cup', name: 'Difenhydramina', type: 'click', cost: 150, val: 5, desc: '+5 klik' },
             { id: 'ladle', name: 'Fuze Tea', type: 'click', cost: 2500, val: 25, desc: '+25 klik' },
@@ -267,55 +322,74 @@
             { id: 'planet', name: 'Mommy ASMR', type: 'auto', cost: 500000000, val: 1000000, desc: '+1M/sek' }
         ];
 
-        // Inicjalizacja pustych wartości dla itemów
         SHOP_ITEMS.forEach(i => {
-            if(typeof GAME_DATA.items[i.id] === 'undefined') {
-                GAME_DATA.items[i.id] = 0;
-            }
+            if(typeof GAME_DATA.items[i.id] === 'undefined') GAME_DATA.items[i.id] = 0;
         });
 
-        // Dźwięk
-        let soundEffect = new Audio('pour.mp3'); 
+        let soundPour = new Audio('pour.mp3'); 
+        let musicBg = document.getElementById('bg-music');
+        musicBg.volume = 0.3;
 
-        /* --- CORE LOGIC --- */
         window.onload = function() {
             loadFromCookies();
             renderShop();
             updateGUI();
-            
-            // Główna pętla logiczna
+
+            // --- AUTOSTART MUZYKI (FIX) ---
+            const playPromise = musicBg.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(() => {
+                    // Jeśli przeglądarka zablokowała autoplay, 
+                    // czekamy na pierwsze kliknięcie gracza w cokolwiek.
+                    console.log("Autoplay zablokowany. Czekam na kliknięcie.");
+                    document.body.addEventListener('click', function() {
+                        musicBg.play();
+                    }, { once: true });
+                });
+            }
+            // ------------------------------
+
             setInterval(() => {
                 const mps = getMPS();
                 if(mps > 0) {
                     GAME_DATA.score += mps;
                     updateGUI();
                 }
-            }, 1000); // Co 1 sekunda (dochód pasywny)
-
-            setInterval(updateGUI, 100); // Częste odświeżanie UI
-            setInterval(saveToCookies, 5000); // Auto-save co 5 sek
+            }, 1000);
+            setInterval(updateGUI, 100);
+            setInterval(saveToCookies, 5000);
         };
 
-        // OBSŁUGA KLIKNIĘCIA (HITBOX)
+        function toggleMusic() {
+            const btn = document.getElementById('music-btn');
+            if (musicBg.paused) {
+                musicBg.play().then(() => {
+                    btn.innerHTML = '🎵 Muzyka: ON';
+                    btn.style.background = '#e6fffa';
+                    btn.style.color = '#005f40';
+                }).catch(e => console.log("Błąd audio", e));
+            } else {
+                musicBg.pause();
+                btn.innerHTML = '🔇 Muzyka: OFF';
+                btn.style.background = 'rgba(255, 255, 255, 0.95)';
+                btn.style.color = '#005f40';
+            }
+        }
+
         const clickZone = document.getElementById('click-zone');
         
         const handleInteraction = (e) => {
-            // Logika
             const clickPower = getClickPower();
             GAME_DATA.score += clickPower;
-
-            // Dźwięk (zabezpieczony)
             try { 
-                let s = soundEffect.cloneNode(); 
-                s.volume = 0.3; 
+                let s = soundPour.cloneNode(); 
+                s.volume = 0.4; 
                 s.play().catch(()=>{}); 
             } catch(err){}
 
-            // Efekty
-            let x = e.clientX || e.changedTouches[0].clientX;
-            let y = e.clientY || e.changedTouches[0].clientY;
+            let x = e.clientX || (e.changedTouches ? e.changedTouches[0].clientX : 0);
+            let y = e.clientY || (e.changedTouches ? e.changedTouches[0].clientY : 0);
             
-            // Jeśli współrzędne są dziwne (np. poza oknem), wycentruj
             if(!x) {
                 const rect = clickZone.getBoundingClientRect();
                 x = rect.left + rect.width/2;
@@ -323,42 +397,34 @@
             }
 
             spawnParticle(x, y, `+${formatNum(clickPower)}`);
-            animateBottle();
+            const bottle = document.getElementById('visual-bottle');
+            bottle.style.transform = `scale(0.96) rotate(${Math.random() * 4 - 2}deg)`;
+            setTimeout(() => { bottle.style.transform = `scale(1) rotate(0deg)`; }, 60);
+
             updateGUI();
         };
 
         clickZone.addEventListener('mousedown', handleInteraction);
         clickZone.addEventListener('touchstart', (e) => {
-            e.preventDefault(); // Stop zoom
+            e.preventDefault();
             handleInteraction(e);
         }, {passive: false});
-
-        function animateBottle() {
-            const bottle = document.getElementById('visual-bottle');
-            bottle.style.transform = `scale(0.96) rotate(${Math.random() * 4 - 2}deg)`;
-            setTimeout(() => {
-                bottle.style.transform = `scale(1) rotate(0deg)`;
-            }, 60);
-        }
-
-        /* --- SKLEP I MATEMATYKA --- */
 
         function buy(id) {
             const item = SHOP_ITEMS.find(i => i.id === id);
             const currentLevel = GAME_DATA.items[id] || 0;
             const price = Math.floor(item.cost * Math.pow(1.3, currentLevel));
-
             if(GAME_DATA.score >= price) {
                 GAME_DATA.score -= price;
                 GAME_DATA.items[id] = currentLevel + 1;
-                renderShop(); // Przerysuj, bo cena wzrosła
+                renderShop();
                 updateGUI();
                 saveToCookies();
             }
         }
 
         function getClickPower() {
-            let power = 1; // Baza
+            let power = 1;
             SHOP_ITEMS.filter(i => i.type === 'click').forEach(i => {
                 power += (i.val * (GAME_DATA.items[i.id] || 0));
             });
@@ -373,21 +439,16 @@
             return mps;
         }
 
-        /* --- UI RENDER --- */
-
         function renderShop() {
             const list = document.getElementById('shop-list');
             list.innerHTML = '';
-            
             SHOP_ITEMS.forEach(item => {
                 const lvl = GAME_DATA.items[item.id] || 0;
                 const price = Math.floor(item.cost * Math.pow(1.3, lvl));
-                
                 const div = document.createElement('div');
                 div.className = 'shop-item';
                 div.id = `btn-${item.id}`;
                 div.onclick = () => buy(item.id);
-                
                 div.innerHTML = `
                     <div class="item-left">
                         <div class="item-name">${item.name} <span class="count-badge">${lvl}</span></div>
@@ -404,8 +465,6 @@
         function updateGUI() {
             document.getElementById('score').innerText = formatNum(Math.floor(GAME_DATA.score));
             document.getElementById('mps').innerText = formatNum(getMPS());
-            
-            // Rangi
             const s = GAME_DATA.score;
             let r = "Pacjent Zero";
             if(s > 1000) r = "Kaszlący";
@@ -415,8 +474,6 @@
             if(s > 50000000) r = "Lekoman";
             if(s > 1000000000) r = "Al Kodeino";
             document.getElementById('rank').innerText = r;
-
-            // Przyciski sklepu (szare jak nie stać)
             SHOP_ITEMS.forEach(item => {
                 const lvl = GAME_DATA.items[item.id] || 0;
                 const price = Math.floor(item.cost * Math.pow(1.3, lvl));
@@ -432,10 +489,9 @@
         }
 
         function formatNum(num) {
-            // Ładne formatowanie dużych liczb (np. 1.2M, 500k)
             if(num >= 1000000000) return (num/1000000000).toFixed(2) + ' B';
             if(num >= 1000000) return (num/1000000).toFixed(2) + ' M';
-            if(num >= 100000) return (num/1000).toFixed(0) + ' k'; // np 120 k
+            if(num >= 100000) return (num/1000).toFixed(0) + ' k';
             return num.toLocaleString('pl-PL');
         }
 
@@ -450,155 +506,33 @@
             setTimeout(() => p.remove(), 800);
         }
 
-        /* --- SAVE SYSTEM (COOKIES) --- */
-
         function saveToCookies() {
             const json = JSON.stringify(GAME_DATA);
             const encoded = encodeURIComponent(json);
-            setCookie("thiocodin_clicker_save", encoded, 365);
+            document.cookie = "thiocodin_final_save=" + encoded + "; max-age=31536000; path=/";
         }
 
         function loadFromCookies() {
-            const cookieVal = getCookie("thiocodin_clicker_save");
-            if(cookieVal) {
+            const matches = document.cookie.match(new RegExp(
+                "(?:^|; )" + "thiocodin_final_save".replace(/([\.$?*|{}\(\)\[\]\\\/\+^])/g, '\\$1') + "=([^;]*)"
+            ));
+            if (matches) {
                 try {
-                    const decoded = decodeURIComponent(cookieVal);
-                    const parsed = JSON.parse(decoded);
-                    // Scalanie danych (wazne przy dodawaniu nowych upgradow)
+                    const parsed = JSON.parse(decodeURIComponent(matches[1]));
                     if(parsed.score) GAME_DATA.score = parsed.score;
                     if(parsed.items) {
-                        for(let key in parsed.items) {
-                            GAME_DATA.items[key] = parsed.items[key];
-                        }
+                        for(let key in parsed.items) GAME_DATA.items[key] = parsed.items[key];
                     }
-                } catch(e) {
-                    console.error("Save error:", e);
-                }
+                } catch(e) {}
             }
-        }
-
-        function setCookie(name, value, days) {
-            let expires = "";
-            if (days) {
-                const date = new Date();
-                date.setTime(date.getTime() + (days*24*60*60*1000));
-                expires = "; expires=" + date.toUTCString();
-            }
-            document.cookie = name + "=" + (value || "")  + expires + "; path=/";
-        }
-
-        function getCookie(name) {
-            const nameEQ = name + "=";
-            const ca = document.cookie.split(';');
-            for(let i=0;i < ca.length;i++) {
-                let c = ca[i];
-                while (c.charAt(0)==' ') c = c.substring(1,c.length);
-                if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length,c.length);
-            }
-            return null;
         }
 
         function hardReset() {
-            if(confirm("Czy na pewno chcesz usunąć zapis i zacząć od zera?")) {
-                setCookie("thiocodin_clicker_save", "", -1);
+            if(confirm("Usunąć zapis i zresetować grę?")) {
+                document.cookie = "thiocodin_final_save=; max-age=-1; path=/";
                 location.reload();
             }
         }
     </script>
-    <audio id="bg-music-player" loop>
-    <source src="thioco.mp3" type="audio/mpeg">
-</audio>
-
-<button id="music-toggle-btn" class="music-btn-style">
-    🔇 Muzyka: OFF
-</button>
-
-<style>
-    .music-btn-style {
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        /* Ustawiamy kosmiczny z-index, żeby nic tego nie przykryło */
-        z-index: 2147483647 !important; 
-        /* Wymuszamy, żeby przycisk łapał myszkę */
-        pointer-events: auto !important;
-        
-        background: #ffffff;
-        border: 2px solid #005f40;
-        color: #005f40;
-        padding: 10px 20px;
-        border-radius: 30px;
-        cursor: pointer;
-        font-family: sans-serif;
-        font-weight: bold;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-        transition: transform 0.2s, background 0.2s;
-    }
-
-    .music-btn-style:hover {
-        background: #e6fffa;
-        transform: scale(1.05);
-    }
-
-    .music-btn-style:active {
-        transform: scale(0.95);
-    }
-</style>
-
-<script>
-    // Używamy funkcji samowywołującej, żeby nie kolidowała z resztą gry
-    (function() {
-        const audioPlayer = document.getElementById('bg-music-player');
-        const musicBtn = document.getElementById('music-toggle-btn');
-        let isPlaying = false;
-
-        // Ustawienie głośności
-        audioPlayer.volume = 0.3;
-
-        // Obsługa kliknięcia przycisku
-        musicBtn.addEventListener('click', function(e) {
-            // Zatrzymaj propagację (żeby kliknięcie nie "przebiło się" do gry)
-            e.stopPropagation();
-
-            if (isPlaying) {
-                audioPlayer.pause();
-                musicBtn.innerHTML = '🔇 Muzyka: OFF';
-                musicBtn.style.background = '#ffffff';
-                musicBtn.style.color = '#005f40';
-                isPlaying = false;
-            } else {
-                // Próba odtworzenia
-                const playPromise = audioPlayer.play();
-                
-                if (playPromise !== undefined) {
-                    playPromise.then(_ => {
-                        musicBtn.innerHTML = '🎵 Muzyka: ON';
-                        musicBtn.style.background = '#005f40';
-                        musicBtn.style.color = '#ffffff';
-                        isPlaying = true;
-                    })
-                    .catch(error => {
-                        console.error("Błąd odtwarzania:", error);
-                        alert("Błąd: Nie znaleziono pliku thioco.mp3 w folderze!");
-                    });
-                }
-            }
-        });
-
-        // Próba auto-startu przy pierwszym kliknięciu w cokolwiek na stronie
-        document.body.addEventListener('click', function() {
-            if (!isPlaying) {
-                audioPlayer.play().then(() => {
-                    isPlaying = true;
-                    musicBtn.innerHTML = '🎵 Muzyka: ON';
-                    musicBtn.style.background = '#005f40';
-                    musicBtn.style.color = '#ffffff';
-                }).catch(() => {});
-            }
-        }, { once: true });
-    })();
-</script>
 </body>
 </html>
-
-
