@@ -505,6 +505,100 @@
             }
         }
     </script>
+    <audio id="bg-music-player" loop>
+    <source src="thioco.mp3" type="audio/mpeg">
+</audio>
+
+<button id="music-toggle-btn" class="music-btn-style">
+    🔇 Muzyka: OFF
+</button>
+
+<style>
+    .music-btn-style {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        /* Ustawiamy kosmiczny z-index, żeby nic tego nie przykryło */
+        z-index: 2147483647 !important; 
+        /* Wymuszamy, żeby przycisk łapał myszkę */
+        pointer-events: auto !important;
+        
+        background: #ffffff;
+        border: 2px solid #005f40;
+        color: #005f40;
+        padding: 10px 20px;
+        border-radius: 30px;
+        cursor: pointer;
+        font-family: sans-serif;
+        font-weight: bold;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        transition: transform 0.2s, background 0.2s;
+    }
+
+    .music-btn-style:hover {
+        background: #e6fffa;
+        transform: scale(1.05);
+    }
+
+    .music-btn-style:active {
+        transform: scale(0.95);
+    }
+</style>
+
+<script>
+    // Używamy funkcji samowywołującej, żeby nie kolidowała z resztą gry
+    (function() {
+        const audioPlayer = document.getElementById('bg-music-player');
+        const musicBtn = document.getElementById('music-toggle-btn');
+        let isPlaying = false;
+
+        // Ustawienie głośności
+        audioPlayer.volume = 0.3;
+
+        // Obsługa kliknięcia przycisku
+        musicBtn.addEventListener('click', function(e) {
+            // Zatrzymaj propagację (żeby kliknięcie nie "przebiło się" do gry)
+            e.stopPropagation();
+
+            if (isPlaying) {
+                audioPlayer.pause();
+                musicBtn.innerHTML = '🔇 Muzyka: OFF';
+                musicBtn.style.background = '#ffffff';
+                musicBtn.style.color = '#005f40';
+                isPlaying = false;
+            } else {
+                // Próba odtworzenia
+                const playPromise = audioPlayer.play();
+                
+                if (playPromise !== undefined) {
+                    playPromise.then(_ => {
+                        musicBtn.innerHTML = '🎵 Muzyka: ON';
+                        musicBtn.style.background = '#005f40';
+                        musicBtn.style.color = '#ffffff';
+                        isPlaying = true;
+                    })
+                    .catch(error => {
+                        console.error("Błąd odtwarzania:", error);
+                        alert("Błąd: Nie znaleziono pliku thioco.mp3 w folderze!");
+                    });
+                }
+            }
+        });
+
+        // Próba auto-startu przy pierwszym kliknięciu w cokolwiek na stronie
+        document.body.addEventListener('click', function() {
+            if (!isPlaying) {
+                audioPlayer.play().then(() => {
+                    isPlaying = true;
+                    musicBtn.innerHTML = '🎵 Muzyka: ON';
+                    musicBtn.style.background = '#005f40';
+                    musicBtn.style.color = '#ffffff';
+                }).catch(() => {});
+            }
+        }, { once: true });
+    })();
+</script>
 </body>
 </html>
+
 
