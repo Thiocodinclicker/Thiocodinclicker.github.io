@@ -58,7 +58,7 @@
         }
 
         .music-btn {
-            background: #e6fffa; /* Domyślnie włączony - zielonkawy */
+            background: #e6fffa;
             border: 2px solid var(--primary);
             color: var(--primary);
             padding: 8px 16px;
@@ -308,6 +308,8 @@
             { id: 'ladle', name: 'Fuze Tea', type: 'click', cost: 2500, val: 25, desc: '+25 klik' },
             { id: 'pump', name: 'Sprite 1L', type: 'click', cost: 15000, val: 100, desc: '+100 klik' },
             { id: 'hose', name: 'Prometazyna', type: 'click', cost: 75000, val: 500, desc: '+500 klik' },
+			{ id: 'dbcup', name: 'Double Cup', type: 'click', cost: 500000, val: 1000, desc: '+1000 klik' },
+			{ id: 'vip', name: 'VIP w Aptece', type: 'click', cost: 10000000, val: 2500, desc: '+500 klik' },
 
             // --- AUTOMATY ---
             { id: 'grandma', name: 'Pani Farmaceutka', type: 'auto', cost: 250, val: 2, desc: '+2/sek' },
@@ -317,7 +319,7 @@
             { id: 'factory', name: 'Mała Rozlewnia', type: 'auto', cost: 50000, val: 250, desc: '+250/sek' },
             { id: 'wholesaler', name: 'Hurtownia Leków', type: 'auto', cost: 200000, val: 800, desc: '+800/sek' },
             { id: 'lab', name: 'Laboratorium Chemiczne', type: 'auto', cost: 1000000, val: 3500, desc: '+3.5k/sek' },
-            { id: 'tanker', name: 'Cysterna Kolejowa', type: 'auto', cost: 5000000, val: 15000, desc: '+15k/sek' },
+            { id: 'tanker', name: 'Karta Stałego Klienta', type: 'auto', cost: 5000000, val: 15000, desc: '+15k/sek' },
             { id: 'corp', name: 'Koncern Farmaceutyczny', type: 'auto', cost: 25000000, val: 70000, desc: '+70k/sek' },
             { id: 'planet', name: 'Mommy ASMR', type: 'auto', cost: 500000000, val: 1000000, desc: '+1M/sek' }
         ];
@@ -326,10 +328,17 @@
             if(typeof GAME_DATA.items[i.id] === 'undefined') GAME_DATA.items[i.id] = 0;
         });
 
+        // --- DŹWIĘKI ---
         let soundPour = new Audio('pour.mp3'); 
+        
+        // Dodany dźwięk specjalny dla Mommy ASMR
+        let soundMommy = null;
+        try { soundMommy = new Audio('mommy.mp3'); } catch(e) {}
+
         let musicBg = document.getElementById('bg-music');
         musicBg.volume = 0.3;
 
+        /* --- START --- */
         window.onload = function() {
             loadFromCookies();
             renderShop();
@@ -339,15 +348,12 @@
             const playPromise = musicBg.play();
             if (playPromise !== undefined) {
                 playPromise.catch(() => {
-                    // Jeśli przeglądarka zablokowała autoplay, 
-                    // czekamy na pierwsze kliknięcie gracza w cokolwiek.
                     console.log("Autoplay zablokowany. Czekam na kliknięcie.");
                     document.body.addEventListener('click', function() {
                         musicBg.play();
                     }, { once: true });
                 });
             }
-            // ------------------------------
 
             setInterval(() => {
                 const mps = getMPS();
@@ -410,13 +416,27 @@
             handleInteraction(e);
         }, {passive: false});
 
+        /* --- ZAKUPY I LOGIKA --- */
         function buy(id) {
             const item = SHOP_ITEMS.find(i => i.id === id);
             const currentLevel = GAME_DATA.items[id] || 0;
             const price = Math.floor(item.cost * Math.pow(1.3, currentLevel));
+            
             if(GAME_DATA.score >= price) {
                 GAME_DATA.score -= price;
                 GAME_DATA.items[id] = currentLevel + 1;
+                
+                // --- TU JEST DŹWIĘK MOMMY ASMR ---
+                // Odtwarza się tylko jeśli kupisz item o ID 'planet' (czyli Mommy ASMR w twoim kodzie)
+                if (id === 'planet') {
+                    try {
+                        let s = soundMommy.cloneNode();
+                        s.volume = 1.0;
+                        s.play().catch(e => console.log("Błąd mommy.mp3", e));
+                    } catch(e) {}
+                }
+                // ---------------------------------
+
                 renderShop();
                 updateGUI();
                 saveToCookies();
