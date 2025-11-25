@@ -21,8 +21,8 @@
             background-color: transparent; 
             color: #333;
             margin: 0;
-            height: 100vh;
-            overflow: hidden;
+            height: 100vh; /* Na PC sztywna wysokość */
+            overflow: hidden; /* Na PC brak paska przewijania strony */
             display: flex;
             user-select: none;
             -webkit-user-select: none;
@@ -140,6 +140,8 @@
             display: flex;
             justify-content: center;
             align-items: center;
+            /* Fix dla szybkiego klikania na mobile */
+            touch-action: manipulation; 
         }
 
         #visual-bottle {
@@ -155,6 +157,7 @@
             z-index: 100;
             cursor: pointer;
             border-radius: 50%;
+            -webkit-tap-highlight-color: transparent;
         }
 
         /* --- SKLEP --- */
@@ -242,15 +245,54 @@
             margin-left: 5px;
         }
 
-        /* RESPASYWNOŚĆ */
+        /* --- RESPASYWNOŚĆ (FIX PRZEWIJANIA NA TELEFONIE) --- */
         @media (max-width: 768px) {
-            body { flex-direction: column; }
-            .game-section { flex: 1; border-bottom: 2px solid #ddd; border-right: none; }
-            .shop-section { flex: 1; min-width: 100%; border-top: 2px solid #ddd; }
+            body { 
+                flex-direction: column; 
+                height: auto;      /* Wysokość automatyczna, żeby można było przewijać */
+                overflow-y: auto;  /* Włączamy przewijanie strony */
+                overflow-x: hidden;
+            }
+
+            .game-section { 
+                flex: none; 
+                height: auto;
+                min-height: 85vh; /* Gra zajmuje większość pierwszego ekranu */
+                border-bottom: 2px solid #ddd; 
+                border-right: none; 
+                padding-bottom: 20px;
+            }
+
+            .shop-section { 
+                flex: none;
+                height: auto;      /* Sklep rozciąga się w dół */
+                min-width: 100%; 
+                border-top: 2px solid #ddd; 
+                overflow: visible; 
+            }
+
+            .shop-list {
+                overflow: visible; /* Lista pokazuje wszystkie elementy, przewijamy całą stronę */
+                height: auto;
+                flex: none;
+            }
+
             #visual-bottle { width: 180px; }
             .game-container { height: 250px; }
             h1 { font-size: 1.8rem; margin-top: 20px; }
-            #music-wrapper { top: auto; bottom: 15px; right: 15px; } 
+            
+            /* Przycisk muzyki na górze */
+            #music-wrapper { top: 15px; right: 15px; bottom: auto; } 
+            
+            /* Kontrolki zapisu pod grą, ale nie "fixed" */
+            .save-controls { 
+                position: relative; 
+                bottom: 0; 
+                left: 0; 
+                margin-top: 20px; 
+                text-align: center;
+                width: 100%;
+            }
         }
     </style>
 </head>
@@ -560,6 +602,3 @@
     </script>
 </body>
 </html>
-
-
-
