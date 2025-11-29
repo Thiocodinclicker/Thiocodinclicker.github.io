@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>THIOCODIN MINER 3D (Fixed HUD)</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@700&display=swap');
+
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Roboto', sans-serif; user-select: none; }
+        
+        /* EKRAN STARTOWY */
+        #blocker {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            background: linear-gradient(135deg, #050505, #1a001a); 
+            z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        h1 { color: #d000ff; font-size: 50px; margin-bottom: 10px; text-shadow: 0 0 20px #d000ff; text-transform: uppercase; text-align: center; }
+        p { color: #aaa; font-size: 18px; margin-bottom: 5px; }
+        .controls { margin-bottom: 30px; color: #00ff41; font-size: 14px; }
+        #start-btn {
+            padding: 15px 40px; font-size: 24px; font-weight: bold; color: #fff; background: #00aaff; 
+            border: none; border-radius: 5px; cursor: pointer; transition: 0.2s; box-shadow: 0 0 20px rgba(0, 170, 255, 0.4);
+        }
+        #start-btn:hover { background: #fff; color: #00aaff; transform: scale(1.05); }
+
+        /* HUD - POPRAWIONY */
+        #hud {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            pointer-events: none;
+            z-index: 10; /* To gwarantuje widoczność */
+        }
+        .stat-box {
+            position: absolute; background: rgba(0,0,0,0.6); padding: 10px 20px; border-radius: 4px; border-left: 4px solid #fff;
+            color: #fff; font-size: 20px; font-weight: bold; text-shadow: 1px 1px 0 #000;
+        }
+        #money-box { top: 20px; left: 20px; border-color: #ffd700; color: #ffd700; }
+        #inventory-box { top: 20px; right: 20px; border-color: #d000ff; color: #d000ff; }
+        #upgrade-box { bottom: 20px; left: 20px; border-color: #00aaff; color: #00aaff; font-size: 16px; }
+        
+        /* CELOWNIK */
+        #crosshair {
+            position: absolute; top: 50%; left: 50%; width: 6px; height: 6px; background: #fff;
+            border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 5px #fff;
+            transition: all 0.1s; z-index: 10;
+        }
+        #crosshair.mining { background: #ffd700; width: 12px; height: 12px; border: 2px solid #fff; }
+        #crosshair.buying { background: #d000ff; width: 12px; height: 12px; border: 2px solid #fff; }
+        #crosshair.upgrading { background: #00aaff; width: 12px; height: 12px; border: 2px solid #fff; }
+
+        #msg {
+            position: absolute; top: 60%; left: 50%; transform: translate(-50%, -50%);
+            color: #fff; font-size: 24px; text-shadow: 2px 2px 0 #000; display: none;
+            text-align: center; z-index: 11;
+        }
+
+        canvas {
+            transition: filter 0.1s linear;
+            display: block; /* Fix dla niektórych przeglądarek */
+        }
+    </style>
+    
+    <script src="https://unpkg.com/three@0.126.0/build/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.126.0/examples/js/controls/PointerLockControls.js"></script>
+</head>
+<body>
+
+<div id="blocker">
+    <h1>THIOCODIN MINER 3D</h1>
+    <p>1. Kop w KOPALNI ($$$).</p>
+    <p>2. Kupuj syrop w APTECE (Uważaj na efekty!).</p>
+    <p>3. Ulepszaj sprzęt w AUTOMATACH.</p>
+    <div class="controls">[WASD] Ruch | [MYSZ] Rozglądanie | [LPM] Interakcja</div>
+    <button id="start-btn">ROZPOCZNIJ PRACĘ</button>
+</div>
+
+<div id="crosshair"></div>
+<div id="msg">INTERAKCJA</div>
+
+<div id="hud">
+    <div id="money-box" class="stat-box">HAJS: $<span id="money">0</span></div>
+    <div id="inventory-box" class="stat-box">DAWKA: <span id="dose">0</span> mg</div>
+    <div id="upgrade-box" class="stat-box">
+        Kilof: Lv <span id="lvl-pick">1</span> | Prędkość: Lv <span id="lvl-speed">1</span>
+    </div>
+</div>
+
+<script>
+    // --- CONFIG ---
+    let camera, scene, renderer, controls;
+    let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+    let prevTime = performance.now();
+    const velocity = new THREE.Vector3();
+    const direction = new THREE.Vector3();
+    
+    // Game State
+    let money = 0;
+    let totalDose = 0;
+    let pickaxeLevel = 1;
+    let speedLevel = 1;
+    const syrupPrice = 25;
+    const upgradeCost = 100;
+    
+    // Stan Odurzenia
+    let intoxication = 0; // 0 do 100
+
+    const raycaster = new THREE.Raycaster();
+    const center = new THREE.Vector2(0,0);
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    // --- TEXTURE GENERATOR ---
+    function createTexture(type) {
+        const c = document.createElement('canvas'); c.width = 512; c.height = 512;
+        const ctx = c.getContext('2d');
+        
+        if (type === 'grass') {
+            ctx.fillStyle = '#2d4c1e'; ctx.fillRect(0,0,512,512);
+            for(let i=0; i<5000; i++) {
+                ctx.fillStyle = Math.random()>0.5 ? '#3a5e2a' : '#223b15';
+                ctx.fillRect(Math.random()*512, Math.random()*512, 4, 4);
+            }
+        } else if (type === 'rock') {
+            ctx.fillStyle = '#333'; ctx.fillRect(0,0,512,512);
+            for(let i=0; i<100; i++) {
+                ctx.fillStyle = `rgba(${Math.random()*50},${Math.random()*50},${Math.random()*50},0.5)`;
+                ctx.beginPath(); ctx.arc(Math.random()*512, Math.random()*512, Math.random()*50+20, 0, Math.PI*2); ctx.fill();
+            }
+        } else if (type === 'pharmacy_wall') {
+            ctx.fillStyle = '#f0f0f0'; ctx.fillRect(0,0,512,512);
+            ctx.strokeStyle = '#ccc'; ctx.lineWidth = 4;
+            for(let i=0; i<=512; i+=128) { ctx.moveTo(i,0); ctx.lineTo(i,512); ctx.moveTo(0,i); ctx.lineTo(512,i); }
+            ctx.stroke();
+            ctx.fillStyle = '#00ff41'; ctx.fillRect(0, 450, 512, 62);
+        } else if (type === 'counter') {
+            ctx.fillStyle = '#eee'; ctx.fillRect(0,0,512,512);
+            ctx.fillStyle = '#00ff41'; ctx.font = 'bold 60px Arial'; ctx.textAlign = 'center';
+            ctx.fillText("THIOCODIN", 256, 150);
+            ctx.fillStyle = '#000'; ctx.font = '40px Arial';
+            ctx.fillText(`Cena: $${syrupPrice}`, 256, 300);
+            ctx.strokeStyle = '#00aaff'; ctx.lineWidth=20; ctx.strokeRect(0,0,512,512);
+        } else if (type === 'mine_sign') {
+            ctx.fillStyle = '#5C4033'; ctx.fillRect(0,0,512,512);
+            ctx.strokeStyle = '#3e2b22'; ctx.lineWidth = 2;
+            for(let i=0; i<50; i++) {
+                ctx.beginPath(); ctx.moveTo(0, Math.random()*512); ctx.lineTo(512, Math.random()*512); ctx.stroke();
+            }
+            ctx.fillStyle = '#ffcc00'; ctx.font = 'bold 80px Arial'; ctx.textAlign = 'center';
+            ctx.shadowColor="black"; ctx.shadowBlur=10;
+            ctx.fillText("KOPALNIA", 256, 280);
+            ctx.strokeStyle = '#000'; ctx.lineWidth = 5; ctx.strokeRect(10,10,492,492);
+        } else if (type === 'upgrade_pick') {
+            ctx.fillStyle = '#333'; ctx.fillRect(0,0,512,512);
+            ctx.fillStyle = '#ff0000'; ctx.font = 'bold 60px Arial'; ctx.textAlign = 'center';
+            ctx.fillText("MOC KILOFA", 256, 200);
+            ctx.fillStyle = '#fff'; ctx.font = '40px Arial'; ctx.fillText("$100", 256, 300);
+            ctx.strokeStyle = '#ff0000'; ctx.lineWidth=20; ctx.strokeRect(0,0,512,512);
+        } else if (type === 'upgrade_speed') {
+            ctx.fillStyle = '#333'; ctx.fillRect(0,0,512,512);
+            ctx.fillStyle = '#00aaff'; ctx.font = 'bold 60px Arial'; ctx.textAlign = 'center';
+            ctx.fillText("PRĘDKOŚĆ", 256, 200);
+            ctx.fillStyle = '#fff'; ctx.font = '40px Arial'; ctx.fillText("$100", 256, 300);
+            ctx.strokeStyle = '#00aaff'; ctx.lineWidth=20; ctx.strokeRect(0,0,512,512);
+        }
+
+        const t = new THREE.CanvasTexture(c);
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        return t;
+    }
+
+    // --- INIT ---
+    init();
+    animate();
+
+    function init() {
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB); 
+        scene.fog = new THREE.Fog(0x87CEEB, 10, 80);
+
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
+        scene.add(hemiLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(50, 100, 50);
+        dirLight.castShadow = true;
+        scene.add(dirLight);
+
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 1.7, 0);
+
+        renderer = new THREE.WebGLRenderer({antialias: true});
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        controls = new THREE.PointerLockControls(camera, document.body);
+        document.getElementById('start-btn').addEventListener('click', () => {
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+            controls.lock();
+        });
+        controls.addEventListener('lock', () => document.getElementById('blocker').style.display='none');
+        controls.addEventListener('unlock', () => document.getElementById('blocker').style.display='flex');
+        scene.add(controls.getObject());
+
+        // --- BUDOWANIE ŚWIATA ---
+        const groundTex = createTexture('grass'); groundTex.repeat.set(50,50);
+        const ground = new THREE.Mesh(
+            new THREE.PlaneGeometry(200, 200),
+            new THREE.MeshStandardMaterial({map: groundTex})
+        );
+        ground.rotation.x = -Math.PI/2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // Apteka
+        const pharmacyGroup = new THREE.Group();
+        pharmacyGroup.position.set(-20, 0, 0);
+
+        const wallTex = createTexture('pharmacy_wall');
+        const wallMat = new THREE.MeshStandardMaterial({map: wallTex});
+        
+        const phFloor = new THREE.Mesh(new THREE.BoxGeometry(16, 0.2, 12), new THREE.MeshStandardMaterial({color: 0xffffff}));
+        const backWall = new THREE.Mesh(new THREE.BoxGeometry(16, 8, 1), wallMat); backWall.position.set(0, 4, -5.5);
+        const leftWall = new THREE.Mesh(new THREE.BoxGeometry(1, 8, 12), wallMat); leftWall.position.set(-7.5, 4, 0);
+        const rightWall = new THREE.Mesh(new THREE.BoxGeometry(1, 8, 12), wallMat); rightWall.position.set(7.5, 4, 0);
+        const roof = new THREE.Mesh(new THREE.BoxGeometry(18, 1, 14), new THREE.MeshStandardMaterial({color: 0x333333})); roof.position.y = 8.5;
+        const glassMat = new THREE.MeshStandardMaterial({color: 0x88ccff, transparent: true, opacity: 0.3});
+        const glass = new THREE.Mesh(new THREE.BoxGeometry(14, 6, 0.2), glassMat); glass.position.set(0, 3, 5.5);
+
+        const counter = new THREE.Mesh(new THREE.BoxGeometry(8, 2, 2), new THREE.MeshStandardMaterial({map: createTexture('counter')}));
+        counter.position.set(0, 1, 0);
+        counter.name = "PHARMACY_COUNTER";
+
+        const crossMat = new THREE.MeshBasicMaterial({color: 0x00ff00});
+        const c1 = new THREE.Mesh(new THREE.BoxGeometry(4, 1, 0.5), crossMat);
+        const c2 = new THREE.Mesh(new THREE.BoxGeometry(1, 4, 0.5), crossMat);
+        c1.position.set(0, 10, 6); c2.position.set(0, 10, 6);
+        
+        // Automaty
+        const mach1 = new THREE.Mesh(new THREE.BoxGeometry(3, 5, 2), new THREE.MeshStandardMaterial({color: 0xcc0000}));
+        mach1.position.set(-5, 2.5, 3);
+        const s1 = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 2), new THREE.MeshBasicMaterial({map: createTexture('upgrade_pick')}));
+        s1.position.set(0, 0.5, 1.05); mach1.add(s1);
+        mach1.name = "UPGRADE_PICKAXE";
+
+        const mach2 = new THREE.Mesh(new THREE.BoxGeometry(3, 5, 2), new THREE.MeshStandardMaterial({color: 0x0055cc}));
+        mach2.position.set(5, 2.5, 3);
+        const s2 = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 2), new THREE.MeshBasicMaterial({map: createTexture('upgrade_speed')}));
+        s2.position.set(0, 0.5, 1.05); mach2.add(s2);
+        mach2.name = "UPGRADE_SPEED";
+
+        pharmacyGroup.add(phFloor, backWall, leftWall, rightWall, roof, glass, counter, c1, c2, mach1, mach2);
+        scene.add(pharmacyGroup);
+
+        // Kopalnia
+        const mineGroup = new THREE.Group();
+        mineGroup.position.set(20, 0, 0);
+
+        const rockTex = createTexture('rock');
+        const rockMat = new THREE.MeshStandardMaterial({map: rockTex, roughness: 0.9});
+
+        for(let i=0; i<25; i++) {
+            const size = Math.random()*2 + 1;
+            const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(size, 0), rockMat);
+            rock.position.set((Math.random()-0.5)*25, size/2, (Math.random()-0.5)*25);
+            rock.rotation.set(Math.random(), Math.random(), Math.random());
+            rock.name = "ROCK";
+            rock.castShadow = true;
+            mineGroup.add(rock);
+        }
+        
+        const signPost = new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,3), new THREE.MeshStandardMaterial({color:0x654321}));
+        signPost.position.set(0, 1.5, 12);
+        const signBoard = new THREE.Mesh(new THREE.BoxGeometry(4, 1.5, 0.2), new THREE.MeshStandardMaterial({map: createTexture('mine_sign')}));
+        signBoard.position.set(0, 3, 12);
+        mineGroup.add(signPost, signBoard);
+
+        scene.add(mineGroup);
+
+        document.addEventListener('keydown', onKeyDown);
+        document.addEventListener('keyup', onKeyUp);
+        document.addEventListener('mousedown', onMouseDown);
+        window.addEventListener('resize', onWindowResize);
+    }
+
+    function onMouseDown() {
+        if(!controls.isLocked) return;
+        raycaster.setFromCamera(center, camera);
+        const intersects = raycaster.intersectObjects(scene.children, true);
+
+        if(intersects.length > 0 && intersects[0].distance < 6) {
+            const obj = intersects[0].object;
+            const name = obj.name || obj.parent.name;
+            if(name === "ROCK") mineRock(obj);
+            else if(name === "PHARMACY_COUNTER") buySyrup();
+            else if(name === "UPGRADE_PICKAXE") buyUpgrade('pickaxe');
+            else if(name === "UPGRADE_SPEED") buyUpgrade('speed');
+        }
+    }
+
+    function mineRock(rock) {
+        rock.scale.set(0.9, 0.9, 0.9);
+        setTimeout(() => rock.scale.set(1,1,1), 100);
+        const gain = Math.floor((Math.random() * 4 + 2) * pickaxeLevel);
+        money += gain;
+        playSound('mining');
+        showFloatingText(`+$${gain}`, 0xffff00);
+        updateHUD();
+    }
+
+    function buySyrup() {
+        if(money >= syrupPrice) {
+            money -= syrupPrice;
+            totalDose += 150; 
+            intoxication += 30; // Zwiększ fazę
+            if(intoxication > 100) intoxication = 100;
+            playSound('buying');
+            showFloatingText("DAWKA +150mg", 0xd000ff);
+        } else {
+            playSound('error');
+            showFloatingText("BRAK KASY!", 0xff0000);
+        }
+        updateHUD();
+    }
+
+    function buyUpgrade(type) {
+        if(money >= upgradeCost) {
+            money -= upgradeCost;
+            playSound('upgrade');
+            if(type === 'pickaxe') { pickaxeLevel++; showFloatingText("KILOF UPGRADE!", 0xff0000); }
+            else if (type === 'speed') { speedLevel++; showFloatingText("SZYBKOŚĆ UPGRADE!", 0x00aaff); }
+        } else {
+            playSound('error');
+            showFloatingText(`KOSZT: $${upgradeCost}`, 0xff0000);
+        }
+        updateHUD();
+    }
+
+    function showFloatingText(text, color) {
+        const msg = document.getElementById('msg');
+        msg.style.display = 'block';
+        msg.style.color = '#' + color.toString(16);
+        msg.innerText = text;
+        setTimeout(() => msg.style.display = 'none', 800);
+    }
+
+    function playSound(type) {
+        if(!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        
+        let rate = 1.0;
+        // Dźwięk też lekko zwalnia na fazie
+        if(intoxication > 20) rate = 0.9;
+        if(intoxication > 50) rate = 0.7;
+
+        if(type === 'mining') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(100 * rate, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 0.1);
+        } else if (type === 'buying') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(400 * rate, audioCtx.currentTime);
+            osc.frequency.linearRampToValueAtTime(100, audioCtx.currentTime + 0.5);
+        } else if (type === 'upgrade') {
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(200 * rate, audioCtx.currentTime);
+            osc.frequency.linearRampToValueAtTime(600 * rate, audioCtx.currentTime + 0.3);
+        } else {
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(150 * rate, audioCtx.currentTime);
+            osc.frequency.linearRampToValueAtTime(100 * rate, audioCtx.currentTime + 0.2);
+        }
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+    }
+
+    function updateHUD() {
+        document.getElementById('money').innerText = money;
+        document.getElementById('dose').innerText = totalDose;
+        document.getElementById('lvl-pick').innerText = pickaxeLevel;
+        document.getElementById('lvl-speed').innerText = speedLevel;
+    }
+
+    function updateVisuals() {
+        const canvas = renderer.domElement;
+        if(intoxication > 0) {
+            // Tylko filtry CSS, bez ruszania kamerą!
+            const blur = Math.min(intoxication / 10, 6);
+            const hue = (Date.now() / 20) % 360;
+            canvas.style.filter = `blur(${blur}px) hue-rotate(${hue}deg) contrast(1.2)`;
+        } else {
+            canvas.style.filter = "none";
+        }
+    }
+
+    function onKeyDown(e) {
+        switch(e.code) {
+            case 'KeyW': moveForward = true; break;
+            case 'KeyA': moveLeft = true; break;
+            case 'KeyS': moveBackward = true; break;
+            case 'KeyD': moveRight = true; break;
+        }
+    }
+    function onKeyUp(e) {
+        switch(e.code) {
+            case 'KeyW': moveForward = false; break;
+            case 'KeyA': moveLeft = false; break;
+            case 'KeyS': moveBackward = false; break;
+            case 'KeyD': moveRight = false; break;
+        }
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        const time = performance.now();
+        const delta = (time - prevTime) / 1000;
+        prevTime = time;
+
+        if(controls.isLocked) {
+            velocity.x -= velocity.x * 10.0 * delta;
+            velocity.z -= velocity.z * 10.0 * delta;
+            velocity.y -= 9.8 * 100.0 * delta;
+
+            direction.z = Number(moveForward) - Number(moveBackward);
+            direction.x = Number(moveRight) - Number(moveLeft);
+            direction.normalize();
+
+            // Prędkość
+            let speed = 400.0 + (speedLevel * 50);
+            if(intoxication > 0) speed *= Math.max(0.4, 1.0 - (intoxication / 150));
+
+            if (moveForward || moveBackward) velocity.z -= direction.z * speed * delta;
+            if (moveLeft || moveRight) velocity.x -= direction.x * speed * delta;
+
+            controls.moveRight(-velocity.x * delta);
+            controls.moveForward(-velocity.z * delta);
+            
+            // Logika trzeźwienia
+            if (intoxication > 0) {
+                intoxication -= delta * 1.5; 
+                if(intoxication < 0) intoxication = 0;
+            }
+            // Aktualizacja efektów w każdej klatce
+            updateVisuals();
+
+            // Raycaster
+            raycaster.setFromCamera(center, camera);
+            const intersects = raycaster.intersectObjects(scene.children, true);
+            const ch = document.getElementById('crosshair');
+            if(intersects.length > 0 && intersects[0].distance < 6) {
+                const n = intersects[0].object.name || intersects[0].object.parent.name;
+                if(n === "ROCK") ch.className = "mining";
+                else if(n === "PHARMACY_COUNTER") ch.className = "buying";
+                else if(n === "UPGRADE_PICKAXE" || n === "UPGRADE_SPEED") ch.className = "upgrading";
+                else ch.className = "";
+            } else ch.className = "";
+        }
+        renderer.render(scene, camera);
+    }
+    
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+</script>
+</body>
+</html>
