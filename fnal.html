@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>LEANBEARS PHARMACY - FIXED</title>
+    <style>
+        :root { --p: #6a0dad; --lp: #9d4edd; --g: #00ff41; --r: #ff0000; }
+        body { background: #000; color: #fff; font-family: 'Courier New', monospace; margin: 0; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        
+        #game-view { width: 900px; height: 600px; background: #111; position: relative; border: 5px solid #333; }
+        
+        /* UI */
+        .hud { position: absolute; z-index: 20; background: rgba(0,0,0,0.8); padding: 10px; border: 1px solid var(--p); pointer-events: none; }
+        #power-box { bottom: 20px; left: 20px; color: var(--g); }
+        #time-box { top: 20px; right: 20px; font-size: 24px; }
+
+        /* OFFICE */
+        #office { width: 100%; height: 100%; background: #1a1a1a; display: flex; justify-content: space-between; align-items: center; padding: 0 40px; box-sizing: border-box; }
+        .hallway { width: 140px; height: 400px; background: #000; border: 2px solid #222; position: relative; overflow: hidden; }
+        .hallway.light-on { background: #444; box-shadow: 0 0 30px #fff; }
+        
+        .door-visual { position: absolute; top: 0; left: 0; width: 100%; height: 0%; background: #333; z-index: 10; transition: height 0.2s; border-bottom: 5px solid var(--p); }
+        .door-visual.closed { height: 100%; }
+
+        /* ANIMATRONICS IN OFFICE */
+        .threat { position: absolute; bottom: 0; width: 100%; height: 70%; display: none; background-size: contain; background-repeat: no-repeat; background-position: bottom; z-index: 5; }
+        #threat-l { background-image: url('https://image.pollinations.ai/prompt/scary_purple_bunny_animatronic_peek_2d'); background-color: blue; }
+        #threat-r { background-image: url('https://image.pollinations.ai/prompt/scary_yellow_chicken_animatronic_peek_2d'); background-color: yellow; }
+
+        /* CONTROLS */
+        .controls { display: flex; flex-direction: column; gap: 10px; z-index: 15; }
+        button { padding: 10px; background: #222; color: #fff; border: 2px solid var(--p); cursor: pointer; }
+        button:active { background: var(--p); }
+
+        /* MONITOR */
+        #monitor { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 30; display: none; flex-direction: column; }
+        #cam-screen { flex-grow: 1; background: #222; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 10px solid #111; position: relative; }
+        #cam-map { position: absolute; bottom: 20px; right: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+        .cam-btn { font-size: 10px; padding: 5px; background: #000; color: var(--g); border: 1px solid var(--g); }
+
+        #monitor-toggle { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 200px; height: 30px; background: var(--p); z-index: 40; text-align: center; cursor: pointer; line-height: 30px; }
+
+        /* OVERLAYS */
+        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 100; display: none; flex-direction: column; justify-content: center; align-items: center; }
+        #jumpscare-img { width: 400px; height: 400px; background: var(--r); border: 5px solid white; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+
+    <div id="game-view">
+        <div id="power-box" class="hud">SYROP: <span id="p-val">100</span>% <br> ZUŻYCIE: <span id="u-val">I</span></div>
+        <div id="time-box" class="hud"><span id="t-val">12</span> AM</div>
+
+        <div id="office">
+            <div class="controls">
+                <button onclick="toggleDoor('L')">DRZWI</button>
+                <button onmousedown="light('L',true)" onmouseup="light('L',false)">ŚWIATŁO</button>
+            </div>
+            <div id="h-l" class="hallway"><div id="d-l" class="door-visual"></div><div id="threat-l" class="threat"></div></div>
+            <div style="text-align:center"><h3>LEANBEARS</h3><p>Noc 1</p></div>
+            <div id="h-r" class="hallway"><div id="d-r" class="door-visual"></div><div id="threat-r" class="threat"></div></div>
+            <div class="controls">
+                <button onclick="toggleDoor('R')">DRZWI</button>
+                <button onmousedown="light('R',true)" onmouseup="light('R',false)">ŚWIATŁO</button>
+            </div>
+        </div>
+
+        <div id="monitor">
+            <div id="cam-screen">
+                <div id="cam-name">CAM 1: GŁÓWNA SALA</div>
+                <div id="cam-status" style="font-size:12px">Wykryto ruch...</div>
+            </div>
+            <div id="cam-map">
+                <button class="cam-btn" onclick="setCam(1)">CAM 1</button>
+                <button class="cam-btn" onclick="setCam(2)">CAM 2</button>
+                <button class="cam-btn" onclick="setCam(3)">CAM 3</button>
+                <button class="cam-btn" onclick="setCam(4)">CAM 4</button>
+            </div>
+        </div>
+
+        <div id="monitor-toggle" onclick="toggleMon()">MONITOR</div>
+
+        <div id="scare" class="overlay">
+            <div id="jumpscare-img"></div>
+            <h1 style="color:red">ADRIAN CIĘ DOPADŁ</h1>
+            <button onclick="location.reload()">RESTART</button>
+        </div>
+        <div id="win" class="overlay"><h1>6:00 AM</h1><p>Przetrwałeś!</p><button onclick="location.reload()">ZAGRAJ ZNOWU</button></div>
+    </div>
+
+    <script>
+        let s = { p:100, h:0, t:0, dL:false, dR:false, lL:false, lR:false, mon:false, cam:1, active:true };
+        let noddy = { pos:0 }, chicka = { pos:0 }, leanxy = { stage:0 };
+
+        const loop = setInterval(() => {
+            if(!s.active) return;
+            s.t++;
+            if(s.t % 40 === 0) { s.h++; document.getElementById('t-val').innerText = s.h; if(s.h===6) win(); }
+            
+            let usage = 1 + (s.dL?1:0) + (s.dR?1:0) + (s.mon?1:0) + (s.lL||s.lR?1:0);
+            s.p -= (usage * 0.1);
+            document.getElementById('p-val').innerText = Math.floor(s.p);
+            document.getElementById('u-val').innerText = "I".repeat(usage);
+            if(s.p <= 0) die("Brak prądu! Adrian Buszton wyszedł z cienia.");
+
+            if(s.t % 4 === 0) moveAI();
+            draw();
+        }, 1000);
+
+        function moveAI() {
+            if(Math.random() > 0.6) noddy.pos = Math.min(noddy.pos + 1, 2);
+            if(Math.random() > 0.6) chicka.pos = Math.min(chicka.pos + 1, 2);
+            if(Math.random() > 0.8) leanxy.stage++;
+
+            if(noddy.pos === 2 && !s.dL && !s.lL && !s.mon) die("NODDY cię złapał!");
+            if(chicka.pos === 2 && !s.dR && !s.lR && !s.mon) die("THIOCHICKA jest w biurze!");
+            if(leanxy.stage > 5) { if(!s.dL) die("LEANXY wbiegł do biura!"); else { leanxy.stage=0; s.p-=10; } }
+        }
+
+        function draw() {
+            document.getElementById('threat-l').style.display = (s.lL && noddy.pos === 2) ? 'block' : 'none';
+            document.getElementById('threat-r').style.display = (s.lR && chicka.pos === 2) ? 'block' : 'none';
+            
+            let status = "Cisza...";
+            if(s.cam === 1 && (noddy.pos === 0 || chicka.pos === 0)) status = "Ktoś jest na scenie.";
+            if(s.cam === 3) status = "Zatoka Syropu: Faza " + leanxy.stage;
+            document.getElementById('cam-status').innerText = status;
+        }
+
+        function toggleDoor(side) { 
+            if(side==='L') { s.dL = !s.dL; document.getElementById('d-l').classList.toggle('closed', s.dL); }
+            else { s.dR = !s.dR; document.getElementById('d-r').classList.toggle('closed', s.dR); }
+        }
+        function light(side, v) {
+            if(side==='L') { s.lL = v; document.getElementById('h-l').classList.toggle('light-on', v); }
+            else { s.lR = v; document.getElementById('h-r').classList.toggle('light-on', v); }
+        }
+        function toggleMon() { s.mon = !s.mon; document.getElementById('monitor').style.display = s.mon ? 'flex' : 'none'; }
+        function setCam(n) { s.cam = n; document.getElementById('cam-name').innerText = "CAM " + n; }
+        
+        function die(msg) { s.active = false; document.getElementById('scare').style.display = 'flex'; alert(msg); }
+        function win() { s.active = false; document.getElementById('win').style.display = 'flex'; }
+    </script>
+</body>
+</html>
